@@ -1,0 +1,6 @@
+{
+  "name": "Ms. Heavy Metal Leaf - Cyborg Bio-Bot Platform",
+  "description": "Tactical bio-cybernetic robotics interface for Ms. Heavy Metal Leaf: phytoremediation telemetry, galvanic pulse overdrive, vascular schematics, and neural botanical synthesis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
