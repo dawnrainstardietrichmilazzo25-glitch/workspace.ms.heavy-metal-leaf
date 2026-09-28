@@ -27,10 +27,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'apical-spire',
     name: 'Apical Sensor Spire',
     category: 'cyber',
+    realityTier: 'near-future',
     x: 50,
     y: 9,
     status: 'OPTIMAL',
     description: 'Tungsten-carbide apex probe equipped with lidar atmospheric telemetry and sun-tracking heliotropic guidance.',
+    scienceNote: 'Near-future feasible: Optical nano-sensors exist today; embedded heliotropic micro-guidance represents near-future soft robotics.',
     metrics: {
       'Lidar Range': '14.2 m',
       'Solar Azimuth': '182.4°',
@@ -41,10 +43,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'chloroplast-core',
     name: 'Chloroplast Quantum Matrix',
     category: 'botany',
+    realityTier: 'fact',
     x: 36,
     y: 35,
     status: 'OPTIMAL',
     description: 'Genetically enhanced bio-photovoltaic thylakoid stacks transducing solar photons into bio-galvanic storage.',
+    scienceNote: 'Grounded scientific fact: Chlorophyll fluorescence (Fv/Fm) is a real-world botanical metric measuring photosynthetic quantum efficiency.',
     metrics: {
       'Quantum Yield (Fv/Fm)': '0.842',
       'Chlorophyll Density': '540 mg/m²',
@@ -55,10 +59,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'midrib-solenoid',
     name: 'Primary Midrib Hydraulic Truss',
     category: 'cyber',
+    realityTier: 'near-future',
     x: 50,
     y: 52,
     status: 'ACTIVE',
     description: 'Titanium-reinforced central vascular spine with high-pressure micro-solenoids pumping heavy-metal enriched sap.',
+    scienceNote: 'Near-future feasible: Xylem negative pressure in MPa is real plant physics; embedded flexible micro-solenoids are near-future soft robotics.',
     metrics: {
       'Hydraulic Sap Tension': '1.84 MPa',
       'Flow Velocity': '42.8 mL/min',
@@ -69,10 +75,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'metal-vacuole',
     name: 'Cadmium-Lead Sequestration Matrix',
     category: 'metal',
+    realityTier: 'fact',
     x: 64,
     y: 45,
     status: 'ACTIVE',
     description: 'Phytochelatin vacuolar chambers converting toxic soil heavy metals into crystallized metallic lattice plates.',
+    scienceNote: 'Grounded scientific fact: Plants like Pteris vittata and Noccaea naturally sequester toxic Pb, Cd, and As into cell vacuoles via phytochelatins.',
     metrics: {
       'Cadmium Saturation': '78.2%',
       'Lead Sequestration': '145 mg/g',
@@ -83,10 +91,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'stomata-valves',
     name: 'Galvanic Stomatal Micro-Valves',
     category: 'botany',
+    realityTier: 'near-future',
     x: 33,
     y: 65,
     status: 'OPTIMAL',
     description: 'Piezoelectric micro-apertures regulating CO2 transpiration, water retention, and acoustic frequency intake.',
+    scienceNote: 'Near-future feasible: Stomatal conductance (gs) is standard botany; targeted acoustic frequency gene/pore stimulation is active experimental research.',
     metrics: {
       'Aperture Width': '8.4 µm',
       'Conductance (gs)': '0.38 mol/(m²·s)',
@@ -97,10 +107,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'arc-prongs',
     name: 'Tesla Arc Emitters (Overdrive Deflectors)',
     category: 'combat',
+    realityTier: 'fiction',
     x: 66,
     y: 72,
     status: 'CHARGING',
     description: 'High-voltage galvanic electrodes discharging defensive electric arcs and sonic shockwaves to vaporize pests.',
+    scienceNote: 'Purely creative fiction: 12.4 kV electrical arcing through living plant tissue would cause dielectric breakdown and incinerate cellular walls.',
     metrics: {
       'Capacitor Bank': '12.4 kV',
       'Pulse Resonance': '73.4 Hz',
@@ -111,10 +123,12 @@ export const HOTSPOT_NODES: HotspotNode[] = [
     id: 'petiole-dock',
     name: 'Petiole Hydraulic Quick-Dock',
     category: 'cyber',
+    realityTier: 'near-future',
     x: 50,
     y: 91,
     status: 'OPTIMAL',
     description: 'Robotic petiole articulation joint connecting Ms. Heavy Metal Leaf to root anchors or autonomous rover mounts.',
+    scienceNote: 'Near-future feasible: Micro-electrode plant interfaces exist today; autonomous robotic petiole docks represent near-future bio-hybrid machines.',
     metrics: {
       'Pitch Articulation': '-12°',
       'Servo Torque': '65 Nm',
@@ -503,6 +517,15 @@ export const CyborgLeafCanvas: React.FC<CyborgLeafCanvasProps> = ({
               <h4 className="text-xs font-bold font-mono tracking-wide text-zinc-100">
                 {selectedNode.name}
               </h4>
+              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded uppercase border font-bold ${
+                selectedNode.realityTier === 'fact'
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                  : selectedNode.realityTier === 'near-future'
+                  ? 'bg-amber-950 text-amber-300 border-amber-700'
+                  : 'bg-purple-950 text-purple-300 border-purple-700'
+              }`}>
+                {selectedNode.realityTier === 'fact' ? '● Grounded Fact' : selectedNode.realityTier === 'near-future' ? '▲ Near-Future' : '★ Sci-Fi Overdrive'}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
@@ -516,9 +539,21 @@ export const CyborgLeafCanvas: React.FC<CyborgLeafCanvasProps> = ({
               </button>
             </div>
           </div>
-          <p className="text-xs text-zinc-300 mb-2.5 leading-relaxed">
+          <p className="text-xs text-zinc-300 mb-2 leading-relaxed">
             {selectedNode.description}
           </p>
+
+          {selectedNode.scienceNote && (
+            <div className={`text-[11px] p-2 rounded mb-2.5 border leading-relaxed ${
+              selectedNode.realityTier === 'fact'
+                ? 'bg-emerald-950/30 border-emerald-900/60 text-emerald-200'
+                : selectedNode.realityTier === 'near-future'
+                ? 'bg-amber-950/30 border-amber-900/60 text-amber-200'
+                : 'bg-purple-950/30 border-purple-900/60 text-purple-200'
+            }`}>
+              <strong>Scientific Reality:</strong> {selectedNode.scienceNote}
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2">
             {Object.entries(selectedNode.metrics).map(([k, v]) => (

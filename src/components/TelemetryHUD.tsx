@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LeafTelemetry } from '../types/bioBot';
 import { audioEngine } from '../audio/synthEngine';
+import plantSpecimenImg from '../assets/images/hyperaccumulator_plant_1790606113565.jpg';
 import { 
   Gauge, 
   Sun, 
@@ -9,7 +10,14 @@ import {
   ShieldCheck, 
   Sliders, 
   Flame, 
-  Zap
+  Zap,
+  Camera,
+  Eye,
+  Maximize2,
+  Sparkles,
+  Leaf,
+  Activity,
+  Terminal
 } from 'lucide-react';
 
 interface TelemetryHUDProps {
@@ -21,6 +29,8 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
   telemetry,
   onUpdateTelemetry,
 }) => {
+  const [showFullSpecimen, setShowFullSpecimen] = useState<boolean>(false);
+
   const handleAngleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const angle = Number(e.target.value);
     onUpdateTelemetry({ leafAngle: angle });
@@ -43,8 +53,8 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
               <Sun className="h-3.5 w-3.5" />
               QUANTUM YIELD (Fv/Fm)
             </span>
-            <span className="text-[10px] font-mono px-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-              MAX EFF
+            <span className="text-[9px] font-mono px-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+              ● FACT (SEC. 1)
             </span>
           </div>
           <div className="flex items-baseline gap-2">
@@ -75,12 +85,8 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
               <Droplets className="h-3.5 w-3.5" />
               XYLEM TENSION
             </span>
-            <span className={`text-[10px] font-mono px-1 rounded border ${
-              telemetry.sapPressure > 2.5 
-                ? 'bg-red-950 text-red-300 border-red-800' 
-                : 'bg-cyan-950 text-cyan-300 border-cyan-800'
-            }`}>
-              {telemetry.sapPressure > 2.5 ? 'HIGH CAVITATION' : 'NOMINAL'}
+            <span className="text-[9px] font-mono px-1 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+              ● FACT (SEC. 1)
             </span>
           </div>
           <div className="flex items-baseline gap-2">
@@ -111,15 +117,15 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
               <BatteryCharging className="h-3.5 w-3.5" />
               GALVANIC CAPACITOR
             </span>
-            <span className="text-[10px] font-mono text-amber-400">
-              12.4 kV
+            <span className="text-[9px] font-mono px-1 rounded bg-purple-950 text-purple-300 border border-purple-800">
+              ★ FICTION (SEC. 3)
             </span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold font-mono text-zinc-100">
               {telemetry.galvanicCharge.toFixed(0)}%
             </span>
-            <span className="text-xs font-mono text-zinc-500">POTENTIAL</span>
+            <span className="text-xs font-mono text-zinc-500">12.4 kV</span>
           </div>
           <div className="mt-2 h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
             <div
@@ -140,15 +146,15 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
               <ShieldCheck className="h-3.5 w-3.5" />
               TITANIUM LIGNIN
             </span>
-            <span className="text-[10px] font-mono px-1 rounded bg-purple-950 text-purple-300 border border-purple-800">
-              ARMORED
+            <span className="text-[9px] font-mono px-1 rounded bg-purple-950 text-purple-300 border border-purple-800">
+              ★ FICTION (SEC. 3)
             </span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold font-mono text-zinc-100">
               {telemetry.exoskeletonIntegrity.toFixed(1)}%
             </span>
-            <span className="text-xs font-mono text-zinc-500">TENSILE</span>
+            <span className="text-xs font-mono text-zinc-500">ARMOR</span>
           </div>
           <div className="mt-2 h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
             <div
@@ -166,10 +172,16 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
       {/* Heliotropic Servo Articulation Controls */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-950/80 p-3 shadow">
         <div className="flex items-center justify-between text-zinc-400 mb-2">
-          <span className="text-xs font-mono font-semibold flex items-center gap-1.5 text-zinc-200">
+          <div className="flex items-center gap-1.5">
             <Sliders className="h-3.5 w-3.5 text-emerald-400" />
-            HELIOTROPIC SERVO PITCH ARTICULATION
-          </span>
+            <span className="text-xs font-mono font-semibold text-zinc-200">
+              HELIOTROPIC SERVO PITCH
+            </span>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1">
+              <Terminal className="h-2.5 w-2.5" />
+              COMMAND DRIVEN
+            </span>
+          </div>
           <span className="text-xs font-mono font-bold text-emerald-400 px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800">
             {telemetry.leafAngle > 0 ? `+${telemetry.leafAngle}°` : `${telemetry.leafAngle}°`}
           </span>
@@ -213,8 +225,70 @@ export const TelemetryHUD: React.FC<TelemetryHUDProps> = ({
         </div>
         <div className="mt-2 flex justify-between text-[10px] font-mono text-zinc-500">
           <span>-45° (STORM DEFLECTION)</span>
-          <span>0° (NADIR)</span>
+          <span>Controlled via Chat: &quot;tilt leaf up 15 deg&quot;</span>
           <span>+45° (ZENITH HARVEST)</span>
+        </div>
+      </div>
+
+      {/* Live Botanical Specimen Camera & Biosensor Telemetry */}
+      <div className="rounded-lg border border-emerald-900/60 bg-zinc-950/80 p-3 shadow flex flex-col gap-2">
+        <div className="flex items-center justify-between text-zinc-400">
+          <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400">
+            <Camera className="h-3.5 w-3.5 text-emerald-400" />
+            <span>LIVE SPECIMEN CULTURE CAM</span>
+            <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 animate-pulse">
+              ● REC
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              audioEngine.playTacticalClick();
+              setShowFullSpecimen(!showFullSpecimen);
+            }}
+            className="flex items-center gap-1 text-[10px] font-mono text-zinc-400 hover:text-emerald-300 transition-colors"
+          >
+            <Maximize2 className="h-2.5 w-2.5" />
+            <span>{showFullSpecimen ? 'COMPACT' : 'EXPAND'}</span>
+          </button>
+        </div>
+
+        {/* Specimen Viewport */}
+        <div className="relative rounded-lg overflow-hidden border border-zinc-800 bg-black group">
+          <img
+            src={plantSpecimenImg}
+            alt="Living Hyperaccumulator Specimen - Brassica with Yellow Blooms"
+            className={`w-full object-cover transition-all duration-300 ${
+              showFullSpecimen ? 'h-60' : 'h-32'
+            }`}
+            referrerPolicy="no-referrer"
+          />
+          {/* Futuristic HUD overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-transparent to-black/30 pointer-events-none" />
+          
+          <div className="absolute top-2 left-2 flex items-center gap-1 text-[9px] font-mono bg-black/70 px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-300">
+            <Activity className="h-2.5 w-2.5 text-emerald-400 animate-pulse" />
+            <span>CH-1: +14.2 mV AP</span>
+          </div>
+
+          <div className="absolute top-2 right-2 text-[9px] font-mono bg-black/70 px-2 py-0.5 rounded border border-zinc-700 text-zinc-300">
+            <span>RH 68% • 22.4°C</span>
+          </div>
+
+          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] font-mono text-zinc-200 bg-black/70 px-2 py-1 rounded border border-zinc-800 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5 truncate">
+              <Leaf className="h-3 w-3 text-emerald-400 flex-shrink-0" />
+              <span className="truncate"><em>Brassica juncea</em> Hyperaccumulator</span>
+            </div>
+            <span className="text-amber-400 font-bold flex-shrink-0 text-[9px]">
+              ROOT SEQUESTRATION ACTIVE
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500">
+          <span>SPECIMEN ID: HYPER-09</span>
+          <span>STOMATA: OPEN (380 mmol m⁻² s⁻¹)</span>
+          <span>VACUOLE: 78.4 mg Cd</span>
         </div>
       </div>
 

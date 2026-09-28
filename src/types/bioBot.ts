@@ -28,10 +28,12 @@ export interface HotspotNode {
   id: string;
   name: string;
   category: 'botany' | 'cyber' | 'metal' | 'combat';
+  realityTier: 'fact' | 'near-future' | 'fiction';
   x: number; // percentage in SVG (0 - 100)
   y: number; // percentage in SVG (0 - 100)
   status: 'OPTIMAL' | 'ACTIVE' | 'WARNING' | 'CHARGING';
   description: string;
+  scienceNote?: string;
   metrics: Record<string, string | number>;
 }
 

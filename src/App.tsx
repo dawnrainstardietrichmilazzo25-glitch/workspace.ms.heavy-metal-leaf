@@ -3,13 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LeafTelemetry, HotspotNode, ViewLayer } from './types/bioBot';
 import { CyborgLeafCanvas, HOTSPOT_NODES } from './components/CyborgLeafCanvas';
 import { TelemetryHUD } from './components/TelemetryHUD';
 import { OverdriveAcousticLab } from './components/OverdriveAcousticLab';
 import { PhytoremediationChamber } from './components/PhytoremediationChamber';
 import { NeuralBotanicCore } from './components/NeuralBotanicCore';
+import { OperatorAuthModal } from './components/OperatorAuthModal';
+import { ActiveOperatorsPanel } from './components/ActiveOperatorsPanel';
+import { ScienceRealityModal } from './components/ScienceRealityModal';
+import { useWorkspaceSync } from './hooks/useWorkspaceSync';
 import { audioEngine } from './audio/synthEngine';
 import { 
   Zap, 
@@ -17,13 +21,18 @@ import {
   Radio, 
   FlaskConical, 
   Bot, 
-  HelpCircle, 
-  Sparkles,
   Shield, 
-  Volume2, 
-  VolumeX,
-  Info
+  Info,
+  Users,
+  User,
+  Sliders,
+  Sparkles,
+  Wifi,
+  BookOpen,
+  MessageSquare
 } from 'lucide-react';
+
+const STORAGE_KEY = 'ms_heavy_metal_leaf_operator';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'console' | 'acoustic' | 'remediation' | 'neural'>('console');
@@ -32,6 +41,37 @@ export default function App() {
   const [isZapping, setIsZapping] = useState<boolean>(false);
   const [isAcousticStimulated, setIsAcousticStimulated] = useState<boolean>(false);
   const [showBioSpecModal, setShowBioSpecModal] = useState<boolean>(false);
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [showOperatorsDrawer, setShowOperatorsDrawer] = useState<boolean>(false);
+  const [showScienceModal, setShowScienceModal] = useState<boolean>(false);
+
+  // Operator Auth Profile
+  const [operator, setOperator] = useState<{
+    name: string;
+    role: string;
+    color: string;
+  }>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn('Failed to parse stored operator:', e);
+    }
+    return {
+      name: '',
+      role: 'Chief Bio-Bot Pilot',
+      color: '#10b981',
+    };
+  });
+
+  // Prompt auth modal if no operator name stored
+  useEffect(() => {
+    if (!operator.name) {
+      setShowAuthModal(true);
+    }
+  }, [operator.name]);
 
   // Master Telemetry State
   const [telemetry, setTelemetry] = useState<LeafTelemetry>({
@@ -58,11 +98,64 @@ export default function App() {
     totalExtractedGrams: 0.303,
   });
 
-  const handleUpdateTelemetry = (patch: Partial<LeafTelemetry>) => {
-    setTelemetry((prev) => ({ ...prev, ...patch }));
-  };
+  // WebSocket Workspace Synchronization Hook
+  const {
+    isConnected,
+    operators,
+    activityLog,
+    chatMessages,
+    broadcastUserNameChange,
+    broadcastChatMessage,
+    broadcastTelemetry,
+    broadcastActuator,
+    broadcastChord,
+    broadcastRhythm,
+    broadcastRemediation,
+  } = useWorkspaceSync({
+    operatorName: operator.name || 'Anonymous Operator',
+    operatorRole: operator.role,
+    operatorColor: operator.color,
+    onRemoteTelemetry: (remoteTelemetry) => {
+      setTelemetry((prev) => ({
+        ...prev,
+        ...remoteTelemetry,
+      }));
+    },
+    onRemoteActuator: (action, remoteOpName) => {
+      if (action === 'zap') {
+        setIsZapping(true);
+        audioEngine.playGalvanicZap(0.4);
+        setTimeout(() => setIsZapping(false), 500);
+      } else if (action === 'purge') {
+        audioEngine.playHydraulicPurge(0.5);
+      } else if (action === 'shield') {
+        audioEngine.playTacticalClick();
+      } else if (action === 'stomata') {
+        audioEngine.playTacticalClick();
+      }
+    },
+    onRemoteChord: (chordName, freq, gain) => {
+      audioEngine.playPowerChord(freq, 0.45, gain || 85);
+      setTelemetry((prev) => ({ ...prev, acousticResonanceHz: freq }));
+    },
+    onRemoteRhythm: (isPlaying) => {
+      setIsAcousticStimulated(isPlaying);
+    },
+  });
+
+  const handleUpdateTelemetry = useCallback((patch: Partial<LeafTelemetry>) => {
+    setTelemetry((prev) => {
+      const updated = { ...prev, ...patch };
+      return updated;
+    });
+    // Broadcast live telemetry change to all room operators
+    broadcastTelemetry(patch);
+  }, [broadcastTelemetry]);
 
   const handleTriggerActuator = (action: string) => {
+    // Broadcast immediately over WebSockets
+    broadcastActuator(action);
+
     if (action === 'zap') {
       audioEngine.playGalvanicZap(0.5);
       setIsZapping(true);
@@ -70,9 +163,8 @@ export default function App() {
         galvanicCharge: Math.max(15, telemetry.galvanicCharge - 25),
       });
       setTimeout(() => setIsZapping(false), 500);
-      // Slowly recharge
       setTimeout(() => {
-        setTelemetry((prev) => ({ ...prev, galvanicCharge: Math.min(100, prev.galvanicCharge + 25) }));
+        handleUpdateTelemetry({ galvanicCharge: Math.min(100, telemetry.galvanicCharge + 25) });
       }, 3000);
     } else if (action === 'purge') {
       audioEngine.playHydraulicPurge(0.6);
@@ -97,8 +189,30 @@ export default function App() {
     }
   };
 
+  const handleOperatorLogin = (name: string, role: string, color: string) => {
+    const profile = { name, role, color };
+    setOperator(profile);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    } catch (e) {
+      console.warn('Could not save operator to localStorage:', e);
+    }
+    broadcastUserNameChange(name, role, color);
+    setShowAuthModal(false);
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
+      {/* Name-Only Authentication Modal */}
+      {showAuthModal && (
+        <OperatorAuthModal
+          onJoin={handleOperatorLogin}
+          currentName={operator.name}
+          isChangingName={Boolean(operator.name)}
+          onCancel={operator.name ? () => setShowAuthModal(false) : undefined}
+        />
+      )}
+
       {/* Top Cybernetic Nav Header */}
       <header className="sticky top-0 z-40 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md px-4 py-3">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -113,12 +227,12 @@ export default function App() {
                 <h1 className="text-base sm:text-lg font-black tracking-wider font-heading text-zinc-100 uppercase">
                   Ms. Heavy Metal Leaf
                 </h1>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
-                  CYBORG BIO-BOT PLATFORM
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold hidden sm:inline">
+                  COLLABORATIVE BIO-BOT ROOM
                 </span>
               </div>
               <p className="text-[11px] font-mono text-zinc-400 hidden sm:block">
-                Tactical Phytoremediation • Drop-D Acoustic Overdrive • Autonomous Phyto-Robotics
+                Tactical Phytoremediation • Drop-D Acoustic Overdrive • Real-Time Shared Workspace
               </p>
             </div>
           </div>
@@ -186,18 +300,74 @@ export default function App() {
             </button>
           </div>
 
-          {/* Quick Specs / Lore Button */}
+          {/* Presence Roster & Active Operator Badge */}
           <div className="flex items-center gap-2">
+            {/* Live Chat & Operators Room Toggle */}
+            <button
+              onClick={() => {
+                audioEngine.playTacticalClick();
+                setShowOperatorsDrawer(!showOperatorsDrawer);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono transition-all ${
+                showOperatorsDrawer
+                  ? 'border-emerald-500 bg-emerald-950/70 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                  : isConnected
+                  ? 'border-emerald-600/70 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40'
+                  : 'border-red-800 bg-red-950/40 text-red-300'
+              }`}
+              title="Toggle Multi-Operator Chat & Live System Deck"
+            >
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}`} />
+              <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
+              <span>CHAT ({chatMessages.length})</span>
+            </button>
+
+            {/* Current Operator Profile Badge */}
+            <button
+              onClick={() => {
+                audioEngine.playTacticalClick();
+                setShowAuthModal(true);
+              }}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 text-xs font-mono hover:border-emerald-500 transition-all text-left"
+              title="Click to change your Operator Call Sign"
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: operator.color || '#10b981' }}
+              />
+              <div className="flex flex-col">
+                <span className="font-bold text-zinc-200 truncate max-w-[100px] leading-tight">
+                  {operator.name || 'Set Call Sign'}
+                </span>
+                <span className="text-[9px] text-zinc-500 truncate max-w-[100px] leading-tight">
+                  {operator.role}
+                </span>
+              </div>
+            </button>
+
+            {/* Science Reality Taxonomy Button */}
+            <button
+              onClick={() => {
+                audioEngine.playTacticalClick();
+                setShowScienceModal(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/60 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40 text-xs font-mono font-bold transition-all shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+              title="Established Science vs. Near-Future vs. Creative Overdrive"
+            >
+              <FlaskConical className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="hidden md:inline">SCIENCE VS. SCI-FI</span>
+            </button>
+
+            {/* Quick Specs / Lore Button */}
             <button
               onClick={() => {
                 audioEngine.playTacticalClick();
                 setShowBioSpecModal(true);
               }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 text-xs font-mono text-zinc-300 hover:border-emerald-500 hover:text-emerald-300 transition-all"
-              title="View Ms. Heavy Metal Leaf Blueprint & Scientific Specs"
+              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-emerald-300 hover:border-emerald-700 transition-all"
+              title="View Ms. Heavy Metal Leaf Blueprint & Specs"
             >
-              <Info className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="hidden md:inline">SPECIFICATIONS</span>
+              <Info className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -205,11 +375,28 @@ export default function App() {
 
       {/* Main Viewport Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+        {/* Real-time Operator Stream Banner (if toggled or on top of workspace) */}
+        {showOperatorsDrawer && (
+          <div className="animate-fade-in">
+            <ActiveOperatorsPanel
+              operators={operators}
+              activityLog={activityLog}
+              chatMessages={chatMessages}
+              currentOperatorName={operator.name}
+              currentOperatorRole={operator.role}
+              currentOperatorColor={operator.color}
+              isConnected={isConnected}
+              onSendMessage={broadcastChatMessage}
+              onOpenNameModal={() => setShowAuthModal(true)}
+            />
+          </div>
+        )}
+
         {/* Dynamic Tab Views */}
         {activeTab === 'console' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left 7 Cols: Interactive Cyborg Leaf Schematic */}
-            <div className="lg:col-span-7">
+            <div className="lg:col-span-7 flex flex-col gap-4">
               <CyborgLeafCanvas
                 telemetry={telemetry}
                 selectedNode={selectedNode}
@@ -221,12 +408,26 @@ export default function App() {
               />
             </div>
 
-            {/* Right 5 Cols: Real-time Telemetry Gauges HUD */}
+            {/* Right 5 Cols: Real-time Telemetry Gauges HUD & Active Roster */}
             <div className="lg:col-span-5 flex flex-col gap-4">
               <TelemetryHUD
                 telemetry={telemetry}
                 onUpdateTelemetry={handleUpdateTelemetry}
               />
+
+              {!showOperatorsDrawer && (
+                <ActiveOperatorsPanel
+                  operators={operators}
+                  activityLog={activityLog}
+                  chatMessages={chatMessages}
+                  currentOperatorName={operator.name}
+                  currentOperatorRole={operator.role}
+                  currentOperatorColor={operator.color}
+                  isConnected={isConnected}
+                  onSendMessage={broadcastChatMessage}
+                  onOpenNameModal={() => setShowAuthModal(true)}
+                />
+              )}
             </div>
           </div>
         )}
@@ -237,30 +438,49 @@ export default function App() {
               <OverdriveAcousticLab
                 resonanceHz={telemetry.acousticResonanceHz}
                 distortionGain={telemetry.distortionGain}
-                onUpdateParams={(p) => handleUpdateTelemetry(p)}
-                onStimulationActiveChange={(active) => setIsAcousticStimulated(active)}
+                onUpdateParams={(p) => {
+                  handleUpdateTelemetry(p);
+                  if (p.resonanceHz) {
+                    broadcastChord('Power Chord', p.resonanceHz, p.distortionGain);
+                  }
+                }}
+                onStimulationActiveChange={(active) => {
+                  setIsAcousticStimulated(active);
+                  broadcastRhythm(active);
+                }}
               />
             </div>
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-4 flex flex-col gap-4">
               <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 shadow-xl backdrop-blur flex flex-col gap-3">
                 <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
                   <Sparkles className="h-4 w-4 text-amber-400" />
                   <h4 className="text-sm font-bold font-heading text-zinc-100">
-                    BIO-ACOUSTIC PHYSICS
+                    SHARED BIO-ACOUSTIC PHYSICS
                   </h4>
                 </div>
                 <div className="text-xs text-zinc-300 leading-relaxed space-y-2">
                   <p>
-                    <strong>Why Heavy Metal?</strong> In bio-hybrid robotics, acoustic frequencies between <strong>70 Hz and 110 Hz</strong> (specifically Drop-D electric guitar power chords) resonate with plant cell mechanoreceptors.
+                    <strong>Collaborative Overdrive:</strong> When you or any connected operator strikes chords or engages the <strong>Riff Stimulator</strong>, the audio broadcast stimulates leaf stomatal dilation for the entire room.
                   </p>
                   <p>
-                    The physical vibration of acoustic overdrive induces micro-shear stresses along the titanium leaf margin, stimulating <em>plasma membrane H⁺-ATPase</em> pumps. This dilates stomatal apertures by <strong>+35%</strong> and accelerates heavy metal cation extraction by <strong>+45%</strong>.
+                    Acoustic vibrations generate <strong>+45%</strong> cation extraction speed across all active decontamination chambers.
                   </p>
-                  <div className="rounded border border-amber-900/50 bg-amber-950/20 p-2 text-[11px] text-amber-200 font-mono">
-                    ✦ TIP: Turn on the <strong>ENGAGE RIFF STIMULATOR</strong> to supercharge phytoremediation rates in the Phyto-Chamber tab!
-                  </div>
                 </div>
               </div>
+
+              {!showOperatorsDrawer && (
+                <ActiveOperatorsPanel
+                  operators={operators}
+                  activityLog={activityLog}
+                  chatMessages={chatMessages}
+                  currentOperatorName={operator.name}
+                  currentOperatorRole={operator.role}
+                  currentOperatorColor={operator.color}
+                  isConnected={isConnected}
+                  onSendMessage={broadcastChatMessage}
+                  onOpenNameModal={() => setShowAuthModal(true)}
+                />
+              )}
             </div>
           </div>
         )}
@@ -308,44 +528,61 @@ export default function App() {
             </div>
 
             <div className="space-y-4 text-xs font-mono text-zinc-300 leading-relaxed">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                <h4 className="text-emerald-400 font-bold mb-1">
-                  1. ORGANIC PHYTO-METRIC SPECIFICATIONS
-                </h4>
-                <p className="text-zinc-400">
-                  Transgenic hybrid of <em>Noccaea caerulescens</em> (alpine pennycress) and synthetic titanium leaf lamina. Utilizes phytochelatins (PC2, PC3) to bind Cd²⁺, Pb²⁺, and Ni²⁺ into non-toxic organometallic vacuolar complexes at rates exceeding 25,000 mg/kg dry biomass.
-                </p>
+              <div className="rounded-lg border border-emerald-800 bg-emerald-950/20 p-3.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-emerald-400 font-bold text-xs uppercase flex items-center gap-1.5">
+                    ● SECTION 1: GROUNDED SCIENTIFIC FACTS (WHAT WE CAN DO TODAY)
+                  </h4>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-700">REALITY</span>
+                </div>
+                <ul className="text-zinc-300 space-y-1.5 text-[11px] list-disc list-inside">
+                  <li><strong>Hyperaccumulation & Phytoremediation:</strong> Plants like <em>Pteris vittata</em> and <em>Noccaea caerulescens</em> naturally absorb, transport, and sequester heavy metals (Pb, Cd, Ni, As) in their biomass. Routinely deployed at EPA Superfund cleanup locations.</li>
+                  <li><strong>Plant Vascular Physiology:</strong> Sap moves through xylem vessels under negative pressure (hydraulic tension), measured in megapascals (MPa). Photosynthetic quantum efficiency is measured via chlorophyll fluorescence (Fv/Fm).</li>
+                  <li><strong>Bio-Sensors & Electrochemistry:</strong> Micro-electrodes read capacitive touch, bio-impedance, and action potentials from living leaves. Carbon nanotube optical sensors detect soil contaminants.</li>
+                </ul>
               </div>
 
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                <h4 className="text-cyan-400 font-bold mb-1">
-                  2. TITANIUM-6AL-4V ROBOTIC EXOSKELETON
-                </h4>
-                <p className="text-zinc-400">
-                  Laser-sintered titanium rib cage reinforcement with hydraulic micro-solenoids. Operates under negative xylem tension of 1.2 to 2.8 MPa, with automated cavitation relief purging.
-                </p>
+              <div className="rounded-lg border border-amber-800 bg-amber-950/20 p-3.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-amber-400 font-bold text-xs uppercase flex items-center gap-1.5">
+                    ▲ SECTION 2: NEAR-FUTURE FEASIBLE (WHAT WE MIGHT ACHIEVE)
+                  </h4>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-700">FEASIBLE LAB</span>
+                </div>
+                <ul className="text-zinc-300 space-y-1.5 text-[11px] list-disc list-inside">
+                  <li><strong>Embedded Micro-Actuators on Living Leaves:</strong> Soft robotic micro-servos, shape-memory alloys, or flexible micro-solenoids along leaf midribs for active heliotropic steering. (Current lab prototypes use external mechanical arms or soft robotic grippers).</li>
+                  <li><strong>Targeted Acoustic Gene Regulation:</strong> Tuning specific sound frequencies to selectively open stomatal pores and stimulate plant mechanosensitive ion channels for accelerated cation uptake.</li>
+                  <li><strong>Real-Time Automated Extraction Micro-Nodes:</strong> Miniaturized lab-on-a-chip leaf sensors streaming real-time metal isotope extraction telemetry over WebSockets (current reality requires harvesting shoots for mass spectrometry ICP-MS).</li>
+                </ul>
               </div>
 
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                <h4 className="text-amber-400 font-bold mb-1">
-                  3. DROP-D ACOUSTIC RESONANCE ENGINE
-                </h4>
-                <p className="text-zinc-400">
-                  Integrated piezoelectric overdrive driver utilizing non-linear waveshaper clipping at 73.41 Hz (Drop-D) to generate acoustic shockwaves that excite leaf stomatal dilation and accelerate ion pumping.
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                <h4 className="text-red-400 font-bold mb-1">
-                  4. GALVANIC DEFENSIVE DISCHARGE
-                </h4>
-                <p className="text-zinc-400">
-                  Dual high-voltage Tesla arc electrodes discharging up to 12.4 kV to vaporize insect herbivores, burn away invasive pathogens, and jump-start root mycorrhizal signaling.
-                </p>
+              <div className="rounded-lg border border-purple-800 bg-purple-950/20 p-3.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-purple-400 font-bold text-xs uppercase flex items-center gap-1.5">
+                    ★ SECTION 3: PURELY FICTIONAL CONCEPTS (CREATIVE OVERDRIVE)
+                  </h4>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-700">SCI-FI</span>
+                </div>
+                <ul className="text-zinc-300 space-y-1.5 text-[11px] list-disc list-inside">
+                  <li><strong>Armor Transmutation:</strong> Plants synthesizing heavy metals absorbed from soil into solid titanium-lignin alloy armor plates on the cuticle (in reality, metals remain stored as non-toxic chemical salts bound to phytochelatins inside cellular vacuoles).</li>
+                  <li><strong>Galvanic Tesla Arc Discharges:</strong> Discharging high-voltage (12.4 kV) electrical zaps through plant tissue (in reality, this would cause dielectric breakdown, boiling sap and destroying cellular walls instantly).</li>
+                </ul>
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-4 flex items-center justify-between pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => {
+                  audioEngine.playTacticalClick();
+                  setShowBioSpecModal(false);
+                  setShowScienceModal(true);
+                }}
+                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>Open Interactive Science Reality Matrix</span>
+              </button>
+
               <button
                 onClick={() => {
                   audioEngine.playTacticalClick();
@@ -360,14 +597,22 @@ export default function App() {
         </div>
       )}
 
+      {/* Science Reality Taxonomy Modal */}
+      <ScienceRealityModal
+        isOpen={showScienceModal}
+        onClose={() => setShowScienceModal(false)}
+      />
+
       {/* Footer Status Bar */}
       <footer className="border-t border-zinc-900 bg-zinc-950 px-4 py-2.5 text-[11px] font-mono text-zinc-500">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              CYBORG BIO-BOT SYSTEM: NOMINAL
+              <span className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+              WS: {isConnected ? 'SYNCHRONIZED' : 'RECONNECTING'}
             </span>
+            <span className="hidden sm:inline text-zinc-600">|</span>
+            <span className="hidden sm:inline">OPERATORS IN ROOM: {operators.length}</span>
             <span className="hidden sm:inline text-zinc-600">|</span>
             <span className="hidden sm:inline">XYLEM FLOW: {telemetry.hydraulicFlowRate.toFixed(1)} mL/min</span>
             <span className="hidden sm:inline text-zinc-600">|</span>
@@ -375,9 +620,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span>FIRMWARE: HM-LEAF v4.09</span>
+            <span>OPERATOR: <strong className="text-zinc-200">{operator.name || 'GUEST'}</strong></span>
             <span className="text-zinc-600">•</span>
-            <span className="text-emerald-500">HEAVY METAL PHYTOMATRIX</span>
+            <span className="text-emerald-500">AUTO-SAVING PERSISTENT ROOM</span>
           </div>
         </div>
       </footer>
